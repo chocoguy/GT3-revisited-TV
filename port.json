@@ -3,7 +3,7 @@
   "id": "gt3-revisited-tv",
   "name": "GT3 Revisited",
   "game": "Gran Turismo 3 A-Spec (PlayStation 2)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.0.0",
 
   "entry": "tools/tvos/port",
