@@ -308,7 +308,9 @@ void Updates::dialog_render(Ui& ui) {
 std::string Updates::badge_text() const {
     switch (prompt()) {
     case net::UpdatePrompt::Required: return "Update required for online";
-    case net::UpdatePrompt::Available: return "Update available";
+    // Apple TV: the relay announces the desktop releases; this port's updates come from its
+    // installer (README "Install"), so a newer desktop release alone is no reason for a badge.
+    case net::UpdatePrompt::Available: return platform::is_tv() ? "" : "Update available";
     default: return "";
     }
 }

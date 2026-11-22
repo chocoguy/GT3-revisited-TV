@@ -8,3 +8,8 @@
 #define GT3R_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 #define GT3R_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define GT3R_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+// The Apple TV port's release version and commit (GT3R_PORT_VERSION in CMakeLists.txt, from
+// port.json or the release tag): what the title bar shows on the Apple TV.
+#define GT3R_PORT_VERSION "@GT3R_PORT_VERSION@"
+#define GT3R_PORT_COMMIT "@GT3R_PORT_COMMIT@"

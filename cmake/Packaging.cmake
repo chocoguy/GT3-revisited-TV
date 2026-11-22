@@ -33,7 +33,9 @@ elseif(TARGET gt3r AND GT3R_TVOS)
   set_source_files_properties(${_xcassets} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
   set_target_properties(gt3r PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST ${GT3R_PACKAGING_DIR}/Info-tvOS.plist.in
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    # The port's release version (CMakeLists.txt GT3R_PORT_VERSION), not the game's.
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${GT3R_PORT_VERSION_NUMBER}
+    MACOSX_BUNDLE_BUNDLE_VERSION ${GT3R_PORT_BUILD}
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
   # The builder's own disc image inside the app (docs/dev/PLATFORMS.md "tvOS"): tvOS has no file
   # picker, and the only folder an app writes there can be emptied by the system. The image is

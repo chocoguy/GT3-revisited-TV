@@ -95,6 +95,25 @@ if(NOT GT3R_VERSION_SUFFIX STREQUAL "" AND NOT GT3R_VERSION_SUFFIX MATCHES "^-[A
   message(FATAL_ERROR "GT3R_VERSION_SUFFIX must look like -dev (got '${GT3R_VERSION_SUFFIX}')")
 endif()
 set(GT3R_VERSION "${PROJECT_VERSION}${GT3R_VERSION_SUFFIX}")
+
+# The Apple TV port's own release version (README "Install", docs/release.md): port.json's
+# "version", or the release tag without its v (-DGT3R_PORT_VERSION=1.2.0-rc1, as the installer's
+# build engine tools/tvos/port and tools/release.sh pass it), with the commit built. It names the
+# app's releases (CFBundleShortVersionString, CFBundleVersion and GT3RPortVersion/GT3RPortCommit,
+# which `tools/tvos/port installed` reads back); GT3R_VERSION above stays the game's version, which
+# online play compares with the upstream relay's.
+set(GT3R_PORT_VERSION "" CACHE STRING "Apple TV port release version, e.g. 1.2.0 (empty: port.json's)")
+set(GT3R_PORT_COMMIT "" CACHE STRING "The commit built, short hash (empty: unknown)")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port.json)
+if(GT3R_PORT_VERSION STREQUAL "")
+  file(READ ${CMAKE_SOURCE_DIR}/port.json _gt3r_port_json)
+  string(JSON GT3R_PORT_VERSION GET "${_gt3r_port_json}" version)
+endif()
+if(NOT GT3R_PORT_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(-[A-Za-z0-9.]+)?$")
+  message(FATAL_ERROR "GT3R_PORT_VERSION must look like 1.2.0 or 1.2.0-rc1 (got '${GT3R_PORT_VERSION}')")
+endif()
+set(GT3R_PORT_VERSION_NUMBER "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+math(EXPR GT3R_PORT_BUILD "${CMAKE_MATCH_1} * 10000 + ${CMAKE_MATCH_2} * 100 + ${CMAKE_MATCH_3}")
 configure_file(${CMAKE_SOURCE_DIR}/cmake/gt3r_version.h.in ${CMAKE_BINARY_DIR}/generated/gt3r_version.h @ONLY)
 target_include_directories(gt3r_engine PUBLIC ${CMAKE_BINARY_DIR}/generated)
 

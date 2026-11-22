@@ -266,8 +266,15 @@ gamepad keeps the touch controls hidden until the screen is touched.
 The Apple TV app builds like the iOS one (the Xcode generator, SDL from source, the same
 shaders, signing with your own team: `GT3R_IOS_TEAM` and `GT3R_IOS_BUNDLE_ID`), with
 `CMAKE_SYSTEM_NAME=tvOS`. Its `Info.plist` is `packaging/Info-tvOS.plist.in` and its icon the
-asset catalog in `packaging/tvos` (`packaging/make_icon.py` writes it): tvOS takes only a layered
-icon with an opaque back layer, and wants the Top Shelf pictures with it.
+asset catalog in `packaging/tvos/gt3r-tvos.xcassets`, the port's own artwork (replaced as files, not
+generated): a three-layer image stack with an opaque back layer, as tvOS requires, the Top Shelf
+pictures, and the launch screen's logo and color (`UILaunchScreen` in the Info.plist).
+`packaging/make_icon.py` only scales `packaging/icon.png` into the Windows and Android icons.
+
+The app's version is the port's release (`port.json`, or `-DGT3R_PORT_VERSION` from the release
+tag): `CFBundleShortVersionString`, `CFBundleVersion` (major×10000 + minor×100 + patch) and the
+`GT3RPortVersion` / `GT3RPortCommit` keys. The game's own version (`project(... VERSION)`) is the
+one online play compares, and the title bar shows both.
 
 ```bash
 cmake -S . -B build-tvos -G Xcode -DCMAKE_SYSTEM_NAME=tvOS -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
@@ -386,20 +393,20 @@ GT3R_SHOT_FRAME=120 GT3R_ONLINE="host" ./build/gt3r.app/Contents/MacOS/gt3r disc
 
 ## CI
 
-`.github/workflows/build.yml`:
+`.github/workflows/build.yml` (this Apple TV port's; the upstream project's builds every platform):
 
-- **desktop** (ubuntu-24.04, windows-2022, macos-15): configure, build
-  `gt3r gt3tool gt3r_tests`, run ctest (tests that need a disc skip).
-- **android**: JDK 21, installs NDK 27.0.12077973 + CMake 3.22.1 with
-  sdkmanager, fetches SDL, `assembleDebug`, uploads the APK.
-- **ios** (macos-15): configures with the Xcode generator and builds the app for devices,
+- **tests** (macos-15): configure, build `gt3r_tests`, run ctest (tests that need a disc skip).
+- **tvos** (macos-15): configures with the Xcode generator and builds the Apple TV app for devices,
   unsigned (no artifact: an unsigned app installs nowhere).
-- **tvos** (macos-15): the same for the Apple TV app.
 
-Validated locally with `actionlint`. GitHub Actions runs it on every push and
-pull request; `v*` tags also run the package jobs and `release` (below).
+GitHub Actions runs it on every push and pull request. CI publishes nothing: releases are made on
+the maintainer's Mac by `tools/release.sh` ([release](../release.md)), which signs and notarizes the
+installer and creates the GitHub Release, so no job runs on tags.
 
 ## Release packages
+
+(Upstream's desktop and Android packages. This Apple TV port doesn't build them: its release is the
+installer, [release](../release.md).)
 
 No game data is in any package. `cmake/Packaging.cmake` adds the icon, the
 macOS `Info.plist` (`packaging/Info.plist.in`) and install rules;
@@ -419,7 +426,7 @@ CI jobs `package`, `package-android` and `package-quest` build these on `v*` tag
 runs (`workflow_dispatch`) and upload them as artifacts. The macOS app is
 only ad-hoc signed (no developer certificate, not notarized): the first launch
 needs System Settings → Privacy & Security → Open Anyway (README, "Installing"). The
-icon is original artwork drawn by `packaging/make_icon.py` (also writes the
+icon is `packaging/icon.png` (`packaging/make_icon.py` scales it into the
 Windows `.ico` and the Android launcher icons).
 
 On a `v*` tag, job `release` collects the packages into a draft GitHub Release

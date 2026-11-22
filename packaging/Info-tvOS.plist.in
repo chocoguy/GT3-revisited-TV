@@ -28,8 +28,19 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<!-- The launch screen: the logo on its color, from the asset catalog (packaging/tvos) -->
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIImageName</key>
+		<string>SplashScreenLogo</string>
+		<key>UIColorName</key>
+		<string>SplashScreenBackground</string>
+	</dict>
+	<!-- The port's release (CMakeLists.txt GT3R_PORT_VERSION), read back by tools/tvos/port installed -->
+	<key>GT3RPortVersion</key>
+	<string>${GT3R_PORT_VERSION}</string>
+	<key>GT3RPortCommit</key>
+	<string>${GT3R_PORT_COMMIT}</string>
 	<!-- Game controllers drive the game; the Siri Remote (MicroGamepad) is listed so the game
 	     starts without a controller, but it is not read (InputManager::add_device). With
 	     controller user interaction the B button and the remote's Back come to the game

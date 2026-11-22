@@ -31,7 +31,13 @@ bool disc_available(const std::string& path) {
     return path.find("://") != std::string::npos || host_path_exists(path); // URIs can't be checked cheaply
 }
 
+// The Apple TV port names its own releases (README "Install"); the game version beside it is the
+// one online play compares.
+#if defined(SDL_PLATFORM_TVOS)
+constexpr const char* kVersion = "v" GT3R_PORT_VERSION " (game " GT3R_VERSION ")";
+#else
 constexpr const char* kVersion = "v" GT3R_VERSION;
+#endif
 
 // Top bar shared by both screens; returns its bottom edge. When a newer release exists (or this
 // version is too old for online play), a small badge beside the version opens the update dialog

@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "id": "gt3-revisited-tv",
+  "name": "GT3 Revisited",
+  "game": "Gran Turismo 3 A-Spec (PlayStation 2)",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+
+  "entry": "tools/tvos/port",
+  "commands": ["check", "prepare", "build", "install", "installed", "clean"],
+
+  "requirements": {
+    "macOS": "27.0",
+    "arch": "arm64",
+    "xcode": "27.0",
+    "platforms": ["tvOS"],
+    "cmake": "3.21",
+    "submodules": false,
+    "network": "the first build downloads SDL and zlib with CMake",
+    "diskGB": 12,
+    "firstBuildMinutes": 10
+  },
+
+  "account": {
+    "minimum": "free",
+    "freeExpiryDays": 7,
+    "capabilities": [],
+    "bundleId": "com.gt3revisited.{team}"
+  },
+
+  "devices": {
+    "family": "appletv",
+    "minModel": "AppleTV14,1",
+    "minOS": "27.0"
+  },
+
+  "inputs": [
+    {
+      "id": "disc",
+      "label": "Gran Turismo 3 A-Spec disc image",
+      "help": "A disc image (.iso or .chd) you made from your own copy of the game.",
+      "kind": "file",
+      "extensions": ["iso", "chd"],
+      "required": true,
+      "verifiedBy": "prepare"
+    }
+  ],
+
+  "stages": [
+    { "id": "disc", "label": "Checking your disc image", "command": "prepare" },
+    { "id": "configure", "label": "Setting up the Xcode project", "command": "build" },
+    { "id": "compile", "label": "Compiling the game", "command": "build" },
+    { "id": "install", "label": "Sending the game to the Apple TV", "command": "install" }
+  ],
+
+  "artifact": {
+    "app": "gt3r.app",
+    "sizeGB": 4.0
+  },
+
+  "saves": {
+    "strategy": "local",
+    "note": "Settings, saves and replays stay on the Apple TV, in the app's caches folder. tvOS may empty it; copy them to the Mac with tools/tvos/tv.py saves pull."
+  },
+
+  "logs": {
+    "process": "gt3r",
+    "files": ["Library/Caches/GT3Revisited/GT3Revisited/log.txt"],
+    "console": false
+  }
+}
