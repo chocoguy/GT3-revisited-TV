@@ -10,12 +10,16 @@ also include the components below; their notices follow.
 | miniz (vendored by libchdr) | 3.1.1 | MIT, parts Unlicense | Deflate-compressed CHD hunks |
 | zstd (vendored by libchdr) | 1.5.7 | BSD-3-Clause | Zstandard-compressed CHD hunks |
 | dr_flac (vendored by libchdr) | — | Public domain or MIT-0 | FLAC-compressed CHD hunks |
+| [Sparkle](https://github.com/sparkle-project/Sparkle) | 2.10.1 | MIT (with the licenses of its own parts) | GT3 Revisited Installer updating itself (embedded in the installer only, not the game) |
 
 libchdr and its dependencies are fetched at build time from the pinned tag and
 are not committed to this repository; the texts below are those of the pinned
 versions. The other third-party components (SDL 3, zlib, Barlow, stb_truetype,
 dr_mp3/dr_wav, the Khronos headers, ANGLE on Windows, and the OpenXR loader in the
 PC VR package) are credited in `README.md` and ship with their own license files.
+
+Sparkle is fetched at build time by `apps/installer/CMakeLists.txt` from its pinned release
+(SHA-256 checked); its license text is `LICENSE` in that release and in Sparkle's repository.
 
 ## libchdr
 
