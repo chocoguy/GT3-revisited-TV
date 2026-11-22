@@ -15,21 +15,16 @@ Players' installers see the new tag on GitHub, build the game from it on their M
    - Or create it on developer.apple.com → Certificates, with a request (CSR) made in this Mac's Keychain Access, so the private key is on this Mac.
    - Check it's in the keychain: `security find-identity -v -p codesigning` lists `Developer ID Application: … (USLHQ524FW)`.
    - Keychain error -25294 on import means the default keychain is unusable. Import with `security import <cer> -k ~/Library/Keychains/login.keychain-db`.
-2. **Notarization credentials**, kept in the keychain under the profile name the script uses:
+2. **Notarization credentials:** the keychain profile `frontline-notary`, shared with Frontline Rewritten (the same team and Apple ID). If it's missing on this Mac, make it again:
    ```sh
-   xcrun notarytool store-credentials gt3r-notary --apple-id <your Apple ID> --team-id USLHQ524FW
+   xcrun notarytool store-credentials frontline-notary --apple-id <your Apple ID> --team-id USLHQ524FW
    ```
    It asks for an app-specific password: make one at account.apple.com → Sign-In and Security → App-Specific Passwords.
-3. **Sparkle's signing key**, once: the private key goes in your keychain, and the public key goes in the repository.
-   1. Build the installer once, which downloads Sparkle into `build-installer/_deps/sparkle-src`:
-      ```sh
-      cmake -S apps/installer -B build-installer -G Xcode && cmake --build build-installer --target GT3RevisitedInstaller
-      ```
-   2. Run:
-      ```sh
-      build-installer/_deps/sparkle-src/bin/generate_keys
-      ```
-   3. Put the public key it prints in `apps/installer/sparkle-public-key.txt`, and commit it. Back up the private key (`generate_keys -x <file>`): **without it, installers already out there can't take updates.**
+3. **Sparkle's signing key:** the same EdDSA key pair as Frontline Rewritten. `apps/installer/sparkle-public-key.txt` holds its public key, and the private key is in your login keychain ("Private key for signing Sparkle updates"), where `generate_appcast` finds it. Keep a backup (`generate_keys -x <file>`): **without it, neither project's installers can take updates.** To check the key in the keychain matches, after building the installer once:
+   ```sh
+   build-installer/_deps/sparkle-src/bin/generate_keys -p
+   ```
+   It prints the same key as `apps/installer/sparkle-public-key.txt`.
 4. **GitHub CLI:**
    ```sh
    brew install gh

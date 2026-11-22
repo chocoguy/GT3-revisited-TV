@@ -19,7 +19,7 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 REPO="chocoguy/GT3-revisited-TV"
-PROFILE="gt3r-notary"
+PROFILE="frontline-notary" # shared with Frontline Rewritten (docs/release.md)
 BUILD="$ROOT/build/release-installer"
 DIST="$ROOT/build/dist"
 
