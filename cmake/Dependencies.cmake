@@ -38,8 +38,8 @@ if(GT3R_XR)
   set(GT3R_FETCH_SDL ON)
   set(SDL_GPU_OPENXR ON CACHE BOOL "" FORCE)
 endif()
-# iOS: an installed SDL3 (Homebrew's) is built for macOS, so the device build always makes its own.
-if(IOS)
+# iOS and tvOS: an installed SDL3 (Homebrew's) is built for macOS, so the device build always makes its own.
+if(GT3R_APPLE_DEVICE)
   set(GT3R_FETCH_SDL ON)
 endif()
 if(NOT GT3R_FETCH_SDL)

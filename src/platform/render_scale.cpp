@@ -41,11 +41,24 @@ float dynamic_ceiling(int pixel_w, int pixel_h) {
 int default_msaa(bool mobile) { return mobile ? 2 : 4; }
 
 bool is_mobile() {
-#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
+// (SDL defines SDL_PLATFORM_IOS for tvOS too.)
+#if defined(SDL_PLATFORM_ANDROID) || (defined(SDL_PLATFORM_IOS) && !defined(SDL_PLATFORM_TVOS))
     return true;
 #else
     return false;
 #endif
 }
+
+bool is_tv() {
+#if defined(SDL_PLATFORM_TVOS)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool low_power_gpu() { return is_mobile() || is_tv(); }
+
+bool fullscreen_only() { return is_mobile() || is_tv(); }
 
 } // namespace gt3r::platform

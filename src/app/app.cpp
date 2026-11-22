@@ -17,6 +17,9 @@
 #include "platform/music_folder.h"
 #include "platform/recent_discs.h"
 #include "platform/render_scale.h"
+#include "platform/tv_discs.h"
+#include "platform/tv_persist.h"
+#include "platform/tv_stats.h"
 #include "platform/mac_layer.h"
 #include "race/replay_library.h"
 
@@ -96,6 +99,9 @@ bool App::init(int argc, char** argv) {
     // (GT3R_DATA_DIR overrides both; game::user_data_dir, shared with the saves).
     data_dir_ = game::user_data_dir();
     SDL_CreateDirectory(data_dir_.c_str());
+    // Apple TV: the settings and saves written back when tvOS emptied the folder, before they are
+    // read; from here on they are kept as they change (platform/tv_persist.h).
+    platform::persist_start(data_dir_);
     SDL_CreateDirectory(mods_dir().c_str());
     config_path_ = data_dir_ + "config.ini";
     if (auto cfg = IniDocument::load(config_path_)) config_ = std::move(*cfg);
@@ -119,6 +125,15 @@ bool App::init(int argc, char** argv) {
     // [video] fullscreen = on at start), leaving no way out but F11.
     SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY, "1");
     SDL_WindowFlags win_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    // Apple TV: [video] tv_4k = off makes the picture 1920x1080 on a 4K television too, scaled
+    // up by tvOS. With the high pixel density flag the window is 3840x2160 there, the 3D views
+    // within it at up to 1440 lines (dynamic resolution). An Apple TV 4K (A15) holds 60 fps
+    // that way with 4x MSAA and stays cool (docs/dev/PLATFORMS.md "tvOS"), so it is the default.
+    // (GT3R_TV_4K=1 or 0 for one run, to measure.)
+    const char* tv_4k_env = SDL_getenv("GT3R_TV_4K");
+    const bool tv_4k = tv_4k_env && *tv_4k_env ? *tv_4k_env == '1'
+                                               : to_lower(config_.get("video", "tv_4k").value_or("on")) != "off";
+    if (platform::is_tv() && !tv_4k) win_flags &= ~SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
     win_flags |= SDL_WINDOW_FULLSCREEN; // immersive: hide system bars
 #endif
@@ -153,7 +168,7 @@ bool App::init(int argc, char** argv) {
     bool use_gpu = gpu_cfg != "0" && gpu_cfg != "off";
     gpu_opts.gles = gpu_cfg == "gles" || gpu_cfg == "gles_driver";
     gpu_opts.angle = gpu_cfg != "gles_driver";
-    gpu_opts.msaa = platform::default_msaa(platform::is_mobile());
+    gpu_opts.msaa = platform::default_msaa(platform::is_mobile()); // (4x on the Apple TV: measured)
     if (auto v = config_.get("video", "msaa")) gpu_opts.msaa = std::atoi(v->c_str());
     if (auto v = config_.get("video", "anisotropy")) gpu_opts.anisotropy = std::atoi(v->c_str());
     if (auto v = config_.get("video", "vsync")) gpu_opts.vsync = *v != "0";
@@ -173,8 +188,9 @@ bool App::init(int argc, char** argv) {
     }
     int win_pw = 0, win_ph = 0;
     SDL_GetWindowSizeInPixels(window_, &win_pw, &win_ph);
+    LOG_INFO("Window: %d x %d pixels", win_pw, win_ph);
     gpu_opts.render_scale = render_scale ? *render_scale
-                                         : platform::auto_render_scale(win_pw, win_ph, platform::is_mobile());
+                                         : platform::auto_render_scale(win_pw, win_ph, platform::low_power_gpu());
     configured_scale_ = gpu_opts.render_scale;
     scale_auto_ = !render_scale;
 #if GT3R_XR
@@ -262,8 +278,28 @@ bool App::init(int argc, char** argv) {
         }
         else if (!a.empty() && a[0] != '-') disc_path = a;
     }
+    // Apple TV: the image built into the app comes before a remembered one: it is the one tvOS
+    // cannot take away, and a copy sent to the user data folder earlier is then not needed.
+    const std::vector<std::string> bundled =
+        platform::is_tv() ? platform::find_disc_images({platform::bundled_disc_dir()}) : std::vector<std::string>();
     if (!disc_path.empty()) last_error_ = open_disc(disc_path);
+    else if (!bundled.empty()) last_error_ = open_disc(bundled.front());
     else open_saved_disc(config_.get("game", "disc").value_or(""));
+    // Apple TV: no file picker and no folder the player reaches. The image built into the app,
+    // or one sent to the user data folder from a Mac, is opened when no other was
+    // (platform/tv_discs.h).
+    if (!disc_ && platform::is_tv()) {
+        for (const std::string& path : tv_discs()) {
+            std::string error = open_disc(path);
+            if (!disc_) {
+                LOG_WARN("Disc image %s: %s", path.c_str(), error.c_str());
+                continue;
+            }
+            last_error_.clear();
+            failed_disc_path_.clear();
+            break;
+        }
+    }
     push(disc_ ? make_hub_screen() : make_setup_screen());
     // Normal start is the game itself (opening movie, then the title menu);
     // the home menu sits underneath (backing out of the title menu shows it).
@@ -290,6 +326,10 @@ void App::push_game_start(bool movie) {
             push(entry.factory());
             return;
         }
+}
+
+std::vector<std::string> App::tv_discs() const {
+    return platform::find_disc_images({platform::bundled_disc_dir(), data_dir_});
 }
 
 void App::open_saved_disc(const std::string& saved) {
@@ -449,7 +489,7 @@ void App::forget_recent_disc(const std::string& path) {
 bool App::fullscreen() const { return window_ && (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN); }
 
 void App::set_fullscreen(bool on) {
-    if (platform::is_mobile()) return; // always fullscreen
+    if (platform::fullscreen_only()) return; // always fullscreen
     SDL_SetWindowFullscreen(window_, on);
     config_.set("video", "fullscreen", on ? "on" : "off");
     save_config();
@@ -570,11 +610,11 @@ void App::set_aspect(platform::Aspect a) {
 }
 
 bool App::full_car_detail() const {
-    return to_lower(config_.get("video", "full_car_detail").value_or(platform::is_mobile() ? "off" : "on")) == "on";
+    return to_lower(config_.get("video", "full_car_detail").value_or(platform::low_power_gpu() ? "off" : "on")) == "on";
 }
 
 std::string App::depth_of_field() const {
-    return to_lower(config_.get("video", "depth_of_field").value_or(platform::is_mobile() ? "off" : "high"));
+    return to_lower(config_.get("video", "depth_of_field").value_or(platform::low_power_gpu() ? "off" : "high"));
 }
 
 bool App::sharp_menu_models() const {
@@ -594,11 +634,11 @@ SDL_Point App::menu_model_size() const {
 }
 
 bool App::showroom_wheels() const {
-    return to_lower(config_.get("video", "showroom_wheels").value_or(platform::is_mobile() ? "off" : "on")) == "on";
+    return to_lower(config_.get("video", "showroom_wheels").value_or(platform::low_power_gpu() ? "off" : "on")) == "on";
 }
 
 bool App::dynamic_resolution() const {
-    return to_lower(config_.get("video", "dynamic_resolution").value_or(platform::is_mobile() ? "on" : "off")) == "on";
+    return to_lower(config_.get("video", "dynamic_resolution").value_or(platform::low_power_gpu() ? "on" : "off")) == "on";
 }
 
 void App::set_dynamic_resolution(bool on) {
@@ -612,7 +652,7 @@ void App::apply_render_scale() {
     std::optional<float> v = platform::parse_render_scale(config_.get("video", "render_scale").value_or("auto"));
     int pw = 0, ph = 0;
     SDL_GetWindowSizeInPixels(window_, &pw, &ph);
-    configured_scale_ = v ? *v : platform::auto_render_scale(pw, ph, platform::is_mobile());
+    configured_scale_ = v ? *v : platform::auto_render_scale(pw, ph, platform::low_power_gpu());
     scale_auto_ = !v;
     render_scale_arg_ = false; // the setting rules from now on
     config_.set("video", "dynamic_start", ""), race_scale_ = 0; // a fresh start
@@ -718,6 +758,8 @@ void App::apply_screen_changes() {
 }
 
 SDL_AppResult App::iterate() {
+    platform::persist_tick(SDL_GetTicks()); // Apple TV: saves kept a few seconds after they are written
+    platform::stats_frame(SDL_GetTicks());  // Apple TV: memory, heat and frame rate in the log
 #if GT3R_XR
     // A headset paces the frames: wait for its next one (nothing to draw while its session is
     // not running, e.g. the headset is off).
@@ -941,7 +983,7 @@ SDL_AppResult App::iterate() {
 }
 
 void App::idle_cursor(Uint64 now) {
-    if (platform::is_mobile() || cursor_hidden_) return; // phones and tablets: no cursor
+    if (platform::fullscreen_only() || cursor_hidden_) return; // phones and tablets: no cursor
     if (mouse_used_ns_ == 0) mouse_used_ns_ = now;
     if (now - mouse_used_ns_ < 2'000'000'000) return; // 2 s
     SDL_HideCursor();
@@ -950,8 +992,17 @@ void App::idle_cursor(Uint64 now) {
 
 SDL_AppResult App::event(const SDL_Event& e) {
     if (e.type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
+    // Apple TV: the Siri Remote is not read (InputManager::add_device). SDL turns the buttons of
+    // a Remote that is not open as a gamepad into key presses (arrows, Return, Escape) while no
+    // real keyboard is connected; those are dropped, and so are its touch surface's fingers.
+    if (platform::is_tv() &&
+        (((e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP) && !SDL_HasKeyboard()) ||
+         (e.type >= SDL_EVENT_FINGER_DOWN && e.type <= SDL_EVENT_FINGER_CANCELED)))
+        return SDL_APP_CONTINUE;
     // Android may end a backgrounded app without a quit.
     if (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_TERMINATING) remember_race_scale();
+    // Apple TV: the saves kept now: the app may be ended without another word.
+    if (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_TERMINATING) platform::persist_flush();
     input_->handle_event(e);
     // The real mouse (not SDL's mouse made from a touch) brings the cursor back.
     const bool mouse_used = (e.type == SDL_EVENT_MOUSE_MOTION && e.motion.which != SDL_TOUCH_MOUSEID) ||
@@ -971,7 +1022,7 @@ SDL_AppResult App::event(const SDL_Event& e) {
     if (xr_ && e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat) xr_->recenter();
 #endif
     // Fullscreen entered or left another way (macOS green button, window manager).
-    if ((e.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN || e.type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) && !platform::is_mobile()) {
+    if ((e.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN || e.type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) && !platform::fullscreen_only()) {
         const char* v = e.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN ? "on" : "off";
         if (config_.get("video", "fullscreen").value_or("off") != v) {
             config_.set("video", "fullscreen", v);
@@ -986,7 +1037,7 @@ SDL_AppResult App::event(const SDL_Event& e) {
         if (audio_) audio_->retry(); // pick up an output device whose open failed earlier
     }
     // Phones and tablets: no songs measured while the game is in the background.
-    if (platform::is_mobile() && (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_DID_ENTER_FOREGROUND))
+    if (platform::fullscreen_only() && (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_DID_ENTER_FOREGROUND))
         music_.set_away(e.type == SDL_EVENT_WILL_ENTER_BACKGROUND);
     if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
         e.type == SDL_EVENT_DID_ENTER_FOREGROUND)

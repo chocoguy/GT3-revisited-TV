@@ -236,7 +236,7 @@ private:
         // 3 renders a frame instead of 10. Each pass is its own small 3D render, submit and
         // composite, which a tile-based mobile GPU pays for in full (5 fps on a Galaxy A15).
         // At the screen's resolution the passes' part of a game pixel has nothing left to add.
-        if (platform::is_mobile() || canvas_) passes = 1;
+        if (platform::low_power_gpu() || canvas_) passes = 1;
         if (show_.key != entry) {
             show_ = Showroom{};
             show_.key = entry;
@@ -386,7 +386,7 @@ private:
         for (const game::CarGetScene::Car& c : sc.cars) keys.push_back(c.car + "#" + std::to_string(c.paint) + "#");
         size_t missing = 0;
         for (const std::string& k : keys) missing += cars_.count(k) ? 0 : 1;
-        const size_t cap = std::max<size_t>(platform::is_mobile() ? 3u : 13u, keys.size() + 1);
+        const size_t cap = std::max<size_t>(platform::low_power_gpu() ? 3u : 13u, keys.size() + 1);
         if (cars_.size() + missing > cap) cars_.clear();
         std::vector<const Loaded*> models;
         for (const game::CarGetScene::Car& c : sc.cars) models.push_back(this->car(app, c.car, c.paint, std::string(), cap));
@@ -517,7 +517,7 @@ private:
         prize_ticks_ = now;
         // Phones and tablets: a model with depth of field stays in the page. Its passes at the
         // screen's resolution take a whole frame (a license card: 58 to 22 fps on a PowerVR BXM).
-        if (platform::is_mobile() && prize_->focus() > 1) canvas_ = nullptr;
+        if (platform::low_power_gpu() && prize_->focus() > 1) canvas_ = nullptr;
         const SDL_FRect box = placed(page_box);
         // The scene covers the page (the widget only marks a spot): the whole 640 x 448 frame.
         SDL_FRect area = box;
@@ -691,7 +691,7 @@ private:
         std::string key = car + "#" + std::to_string(paint) + "#" + wheel;
         if (auto it = cars_.find(key); it != cars_.end()) return it->second.model ? &it->second : nullptr;
         // Phones keep fewer of the detailed menu cars (Mali drivers spend ~185 KB per texture).
-        if (cars_.size() >= std::max<size_t>(cap, platform::is_mobile() ? 3u : 13u)) cars_.clear();
+        if (cars_.size() >= std::max<size_t>(cap, platform::low_power_gpu() ? 3u : 13u)) cars_.clear();
         Loaded& l = cars_[key];
         const game::GtModeSession* s = game::gt_mode_session();
         if (!s) return nullptr;

@@ -40,7 +40,17 @@ float dynamic_ceiling(int pixel_w, int pixel_h);
 // without 2x (Mali) get 4x instead (GpuContext::set_msaa), not none.
 int default_msaa(bool mobile);
 
-// True on Android and iOS builds.
+// True on Android and iOS builds: phones and tablets (touch, tilt, the Files app).
 bool is_mobile();
+// True on the Apple TV: a television, driven by game controllers and the Siri Remote (no touch,
+// no file picker, no folder the player can reach).
+bool is_tv();
+// Phones, tablets and the Apple TV: the graphics defaults of a fanless phone-class GPU (the
+// capped "auto" render scale, dynamic resolution, less car detail). The `mobile` of
+// auto_render_scale. (MSAA is 2x on phones only: the Apple TV 4K holds 4x.)
+bool low_power_gpu();
+// Phones, tablets and the Apple TV: one app fills the screen (no window, no mouse cursor) and
+// the system picks the sound output.
+bool fullscreen_only();
 
 } // namespace gt3r::platform

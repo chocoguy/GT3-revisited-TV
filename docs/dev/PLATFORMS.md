@@ -20,6 +20,7 @@ run interactively; "unverified" means neither.
 | Android real device | NDK 27 clang | ✅ verified | Galaxy A15 5G (Mali-G57 MC2, Android 16, 4 GB), the low-end baseline: menus, car select (~75 fps), Arcade races (35–55 fps). Races also on a Moto G Power 2024 (Imagination BXM), a Hiby R4 and a Galaxy S26 |
 | Meta Quest 3 (VR) | NDK 27 clang | ✅ verified | The Quest APK (`-Pquest`, SDL 3.6 development branch): menus on a virtual screen, stereo races at a steady 90 fps; see [VR](VR.md) |
 | iOS real device | Apple clang 21 (Xcode 27.1) | ✅ verified | iPhone 15 Pro (A17 Pro, iOS 27.2): 3D renderer (SDL_GPU Metal, MSAA 2x); the document picker opens a disc image in place from an SMB share (Files app) and the next start reopens it; GT Mode menus; Arcade races at 120 fps (ProMotion, dynamic resolution at 100%) with touch controls, tilt (right roll steers right) and a GameSir X5 Lite controller; home and back; the Ring / Silent switch silences the game; Open folder shows the user data folder in the Files app; a save exported as raw to `exports/`, and imported back through the picker (FROM A FILE). The mod picker built, not tried |
+| tvOS real device | Apple clang 21 (Xcode 27.2) | ✅ verified | Apple TV 4K (3rd generation, A15, tvOS 27.2), 2026-11-10: installs and starts with the 3D renderer (SDL_GPU Metal, MSAA 2x, 174 pipelines warmed in 1.2 s) and sound; the Siri Remote arrives as a gamepad; the log is read back with `tools/tvos/tv.py log`. 2026-11-11: a 1920x1080 window, and a disc image sent with `tv.py push-disc` (3.88 GB in 356 s) is opened at the start, played with a Pro Controller; 60 fps at 3840x2160 with 4x MSAA and a full grid, thermal state nominal over ten minutes ([tvOS](#tvos)) |
 | iOS simulator (arm64) | Apple clang 21 (Xcode 27.1) | ⚠️ built | Warning-free (no unit tests on iOS); starts to the setup screen with the 2D renderer only (SDL_GPU does not accept the simulator's GPU) |
 
 ## Building and testing
@@ -260,6 +261,103 @@ xcrun simctl launch --console-pty booted org.gt3revisited.gt3r   # the engine lo
 There it runs with the 2D renderer only (SDL_GPU rejects the simulator's GPU), and its virtual
 gamepad keeps the touch controls hidden until the screen is touched.
 
+### tvOS
+
+The Apple TV app builds like the iOS one (the Xcode generator, SDL from source, the same
+shaders, signing with your own team: `GT3R_IOS_TEAM` and `GT3R_IOS_BUNDLE_ID`), with
+`CMAKE_SYSTEM_NAME=tvOS`. Its `Info.plist` is `packaging/Info-tvOS.plist.in` and its icon the
+asset catalog in `packaging/tvos` (`packaging/make_icon.py` writes it): tvOS takes only a layered
+icon with an opaque back layer, and wants the Top Shelf pictures with it.
+
+```bash
+cmake -S . -B build-tvos -G Xcode -DCMAKE_SYSTEM_NAME=tvOS -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+      -DGT3R_IOS_TEAM=<team ID> -DGT3R_IOS_BUNDLE_ID=<your.own.identifier>
+cmake --build build-tvos --config RelWithDebInfo --target gt3r -- -allowProvisioningUpdates
+```
+
+An Apple TV has no cable port, no Files app and no console, so everything goes over the network
+through Xcode's `devicectl`, which `tools/tvos/tv.py` wraps. Pair the TV first (on the TV:
+Settings → Remotes and Devices → Remote App and Devices; on the Mac: Xcode → Window → Devices
+and Simulators), and turn on its Developer Mode (Settings → Privacy & Security).
+
+```bash
+tools/tvos/tv.py devices                         # the paired Apple TVs
+tools/tvos/tv.py build --no-disc                 # configure and build (first time: --team, --bundle-id)
+tools/tvos/tv.py install                         # the newest build-tvos/*-appletvos/gt3r.app
+tools/tvos/tv.py launch -e GT3R_NAME=value       # start it (a running one is ended first)
+tools/tvos/tv.py log                             # the game's log; --prev: the run before
+tools/tvos/tv.py saves pull                      # settings, saves and replays to the Mac
+tools/tvos/tv.py reports                         # why the last run ended
+```
+
+- **The log** is a file there (`platform/tv_log.h`): `log.txt` in the user data folder, each line
+  with the seconds since the start, and the run before it as `log.prev.txt`.
+- **The user data folder** is `Library/Caches/GT3Revisited/GT3Revisited/` in the app's
+  container: tvOS lets an app write nowhere else, and may empty it while the app is not running.
+- **Starting** needs the TV awake; installing and copying work while it sleeps. `tv.py launch`
+  ends a running game first and waits a moment: started over it, the new one can be covered by
+  the Home screen coming back from the old one, and tvOS then suspends it during start-up.
+- With a free Apple ID the installed app stops opening after 7 days, as on iOS.
+
+- **The disc image** reaches the TV in one of two ways (`platform/tv_discs.h`), and the first-run
+  screen lists what it finds:
+  - Built into the app: `tools/tvos/tv.py build --disc <image>` (CMake's `GT3R_TVOS_DISC`) copies
+    your own image into the built app's `disc/` folder, never into the source tree. It stays as
+    long as the app does and is opened before any other. The first install sends the whole app:
+    3.89 GB took 325 s here (2026-11-11); later installs send only what changed (1 s with
+    the same image). A `.chd` makes it smaller. Such an app is for your own
+    Apple TV only.
+  - Sent to the user data folder: `tools/tvos/tv.py push-disc <image>`, once (skipped when it is
+    already there whole; 3.88 GB in 356 s), with `tv.py build --no-disc` for an app that installs
+    in seconds. tvOS may empty that folder while the game is not running, and the image is then
+    sent again.
+- **The picture** is the television's own 3840x2160 with 4x MSAA, the 3D views within it at up
+  to 1440 lines (dynamic resolution, starting at the phones' "auto" scale); Settings → Display →
+  4K picture (`[video] tv_4k = off`) makes everything 1920x1080. Car detail, depth of field and
+  the menus' models keep the phones' defaults (`platform::low_power_gpu`), not measured yet.
+  Measured 2026-11-11 on an Apple TV 4K (3rd generation, A15, tvOS 27.2) with unattended races
+  (`tv.py launch -e GT3R_RACE=event=AEAT0001,car=altezza_rs200_98,auto=1 -- --screen race`,
+  6 cars), 75 s each, thermal state nominal in all:
+
+  | Window | MSAA | Frame (average) | Footprint (peak) | Left under the limit |
+  |---|---|---|---|---|
+  | 1920x1080 | 2x | 16.68 ms (60 fps) | 362 MB | 1,736 MB |
+  | 1920x1080 | 4x | 16.68 ms (60 fps) | 497 MB | 1,601 MB |
+  | 3840x2160 | 2x | 16.68 ms (60 fps) | 629 MB | 1,469 MB |
+  | 3840x2160 | 4x | 16.68 ms (60 fps) | 864 MB | 1,234 MB |
+
+  Ten minutes of the last one, and seven of the defaults: 60 fps throughout, thermal state
+  nominal from start to end, footprint steady at 876 to 886 MB. One 550 ms frame in each run at
+  298 s (the race ending and its replay starting), after which dynamic resolution dipped to 60%
+  for ten seconds. Nothing lowers the frame rate or resolution for heat: the state never left
+  nominal, and it is logged if it does. Not measured: 2-player split screen, replays with depth
+  of field, sessions over ten minutes.
+- **Saves and settings** are kept through a purge (`platform/tv_persist.h`): `config.ini`, the
+  saves, the music playlist and replays while they fit are packed, each compressed, into the
+  app's user defaults (900 KB at most: tvOS ends an app whose defaults pass about 1 MB), three
+  seconds after any of them is written and when the game leaves the foreground; what does not
+  fit goes into a file in `Library/Preferences`. A start that finds the user data folder with
+  neither settings nor saves writes them back. Verified 2026-11-11 by starting on an empty
+  folder (`GT3R_DATA_DIR`): 3 files back before the settings were read; keeping them takes
+  1 to 9 ms. Deleting the app deletes these too, so `tools/tvos/tv.py saves pull` copies them
+  to the Mac (a dated folder in `~/Documents/GT3 Revisited TV backup`) and `saves push <folder>`
+  puts a copy back.
+
+- **What a run cost** is in the log (`platform/tv_stats.h`): the frame rate, the memory footprint,
+  the room left under tvOS's limit and the thermal state every five seconds while they change,
+  and the thermal state at once when it does. tvOS ends an app over its memory limit with no
+  crash report; `tools/tvos/tv.py reports` reads the system's reports for the game and the
+  last such lines of this log and the one before. First numbers (2026-11-11, the opening):
+  60 fps, a footprint of 53 MB with 2,045 MB left, thermal state nominal.
+- **What an Apple TV cannot do is not offered** (`platform::is_tv`): the music and save folder
+  choices, Open folder, installing mods, importing a save from a file (an export goes to the
+  user data folder's `exports/`), the update dialog's download and release notes.
+
+The port is in progress. Not there yet: mods, your own music and texture packs have no way in,
+and text (a save's or camera's
+name, a session code) is typed letter by letter with the pad. The tools and tests are not
+built, as on iOS.
+
 ### Pointer scripts
 
 `GT3R_POINTER_SCRIPT` feeds a screen scripted pointer events, in UI units (640 × 360),
@@ -296,6 +394,7 @@ GT3R_SHOT_FRAME=120 GT3R_ONLINE="host" ./build/gt3r.app/Contents/MacOS/gt3r disc
   sdkmanager, fetches SDL, `assembleDebug`, uploads the APK.
 - **ios** (macos-15): configures with the Xcode generator and builds the app for devices,
   unsigned (no artifact: an unsigned app installs nowhere).
+- **tvos** (macos-15): the same for the Apple TV app.
 
 Validated locally with `actionlint`. GitHub Actions runs it on every push and
 pull request; `v*` tags also run the package jobs and `release` (below).

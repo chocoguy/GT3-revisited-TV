@@ -577,9 +577,17 @@ private:
     void build_display(App& app) {
         App* a = &app;
         IniDocument& cfg = app.config();
-        if (!platform::is_mobile())
+        if (!platform::fullscreen_only())
             toggle("Fullscreen", "Fill the whole screen; off: a resizable window. F11 also toggles.", app.fullscreen(),
                    [a](bool v) { a->set_fullscreen(v); });
+        else if (platform::is_tv())
+            toggle("4K picture",
+                   "Menus and the race's display at the television's full 3840x2160, the 3D view at up to 1440 lines. "
+                   "Off: everything at 1920x1080. Applies at the next start.",
+                   to_lower(cfg.get("video", "tv_4k").value_or("on")) != "off", [a](bool v) {
+                       a->config().set("video", "tv_4k", v ? "on" : "off");
+                       a->save_config();
+                   });
         else
             info("Fullscreen", "Always on this device");
 
@@ -691,7 +699,7 @@ private:
         // Auto sits among the fixed sizes at the scale it picks, so Left is always lower.
         int win_w = 0, win_h = 0;
         SDL_GetWindowSizeInPixels(app.window(), &win_w, &win_h);
-        const float auto_scale = platform::auto_render_scale(win_w, win_h, platform::is_mobile());
+        const float auto_scale = platform::auto_render_scale(win_w, win_h, platform::low_power_gpu());
         // With dynamic resolution, Auto climbs to the screen's full resolution when the GPU keeps up.
         const float auto_top = app.dynamic_resolution() ? std::max(auto_scale, platform::dynamic_ceiling(win_w, win_h))
                                                         : auto_scale;
@@ -760,7 +768,7 @@ private:
         if (!rims.enabled) rims.desc = msaa.desc;
 
         Row& sharp = toggle("Sharp cars and prizes in menus",
-                            platform::is_mobile()
+                            platform::low_power_gpu()
                                 ? "Cars and prizes in the menus are drawn at your screen's resolution, except license "
                                   "cards and trophies. Off: at the game's own 640x448, like the menu art."
                                 : "Cars, trophies and other prizes in the menus are drawn at your screen's resolution. "
@@ -1027,7 +1035,7 @@ private:
         bool disc = app.vfs() != nullptr;
         // Phones and headsets send the sound where the system says (SDL lists only the
         // system device there).
-        if (platform::is_mobile()) {
+        if (platform::fullscreen_only()) {
             info("Output device", "Chosen by the system");
         } else if (au.ok()) {
             std::vector<std::string> devs = {""}; // "": the system default
@@ -1092,6 +1100,12 @@ private:
         // Phones and tablets: the chosen folder by its name (its path is long), the game's as the
         // Files app shows it.
         const bool mobile = platform::is_mobile();
+        // Apple TV: no folder to choose or to copy songs into (no file picker, no Files app).
+        if (platform::is_tv()) {
+            info("Music folder", "Not on Apple TV yet", "An Apple TV has no file picker and no Files app, so your own songs "
+                                                        "have no way in yet. The disc's music plays.");
+            return;
+        }
         std::string shown = folder;
         while (shown.size() > 1 && (shown.back() == '/' || shown.back() == '\\')) shown.pop_back();
         if (mobile) shown = shown.substr(shown.find_last_of("/\\") + 1);
@@ -1146,6 +1160,15 @@ private:
         const bool chosen = app.save_folder_chosen();
         const bool mobile = platform::is_mobile();
         const bool picked = platform::is_document_tree_path(app.save_folder()); // Android's
+        // Apple TV: one folder, which tvOS may empty; the game keeps the saves through that itself
+        // (platform/tv_persist.h) and a Mac backs them up.
+        if (platform::is_tv()) {
+            info("Save folder", "Kept by the game",
+                 "tvOS can empty the game's folder while it is not running, so the saves and settings are also kept "
+                 "where it cannot, and come back by themselves. Deleting the app deletes them: tools/tvos/tv.py saves "
+                 "pull copies them to a Mac.");
+            return;
+        }
         // Looked at again when the folder changes or the game comes back to the foreground (a
         // picked folder's name and access are its provider's).
         if (saves_view_.folder != app.save_folder()) {
@@ -1283,7 +1306,7 @@ private:
                    });
             // [input] background: desktop only (phones and tablets run one app at a time; a
             // headset always reads its controllers).
-            if (!platform::is_mobile())
+            if (!platform::fullscreen_only())
                 toggle("Controllers in the background",
                        "Controllers and wheels keep driving the game while another window is in front, as on a "
                        "second monitor. The keyboard works only in the game's window.",
@@ -2141,7 +2164,7 @@ private:
             a->save_config();
         };
         bool desktop = touch_hidden();
-        if (desktop) info("On this computer", "Only used with a touchscreen");
+        if (desktop) info(platform::is_tv() ? "On this Apple TV" : "On this computer", "Only used with a touchscreen");
         add(Row::Kind::Preview, "Preview", "");
         size_t first = rows_.size();
         const bool custom = c.customized(TouchLayout::Driving) || c.customized(TouchLayout::Menu);
@@ -2355,6 +2378,14 @@ private:
         // Sessions through the relay server need it; offline play and Host / Join by address never do.
         info("Online play needs", up.min_online().known() ? "Version " + up.min_online().number() + " or later" : "Any version");
         net::UpdateLinks links = up.links();
+        if (platform::is_tv()) { // no browser there: the app is updated by building it again
+            info("Updating", "Build and install the app again", "tools/tvos/tv.py build, then install.");
+            heading("Online battle");
+            std::string tv_server = app.config().get("online", "server").value_or(kDefaultServer);
+            info("Relay server", tv_server.empty() ? kDefaultServer : tv_server,
+                 "Change it in the online lobby (Relay server). The update check asks the same server.");
+            return;
+        }
         Row& dl = action("Download update",
                          up.prompt() == net::UpdatePrompt::None ? "This version is up to date (as far as the last check knows)."
                                                                 : "Opens the update dialog: " + links.download,

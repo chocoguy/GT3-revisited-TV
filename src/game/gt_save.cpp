@@ -619,7 +619,10 @@ std::string user_data_dir() {
         if (dir.back() != '/' && dir.back() != '\\') dir += '/';
         return dir;
     }
-#if defined(SDL_PLATFORM_IOS)
+#if defined(SDL_PLATFORM_TVOS)
+    // Apple TV: SDL_GetPrefPath below, which is Library/Caches there: tvOS lets an app write
+    // nowhere else (no Documents), and may empty it while the app is not running.
+#elif defined(SDL_PLATFORM_IOS)
     // iOS: the app's Documents, which the Files app and Finder show as GT3 Revisited
     // (UIFileSharingEnabled): mods and the disc image go in, screenshots and saves come out, as
     // with Android's documents provider. SDL_GetPrefPath's Library folder is hidden from both.

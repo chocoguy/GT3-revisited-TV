@@ -3,6 +3,7 @@
 #include "app/ui.h"
 #include "base/config.h"
 #include "input/input_manager.h"
+#include "platform/render_scale.h"
 
 #include <SDL3/SDL.h>
 
@@ -322,16 +323,17 @@ void draw_touch_controls(Ui& ui, const TouchControls& controls, float dx, float 
 
 void TouchOverlay::load(const IniDocument& config) {
     controls_.configure(TouchConfig::load(config));
-#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
     // Phones and tablets start with the controls shown unless a pad is connected.
-    if (!SDL_HasGamepad()) controls_.note_touch();
-#endif
+    if (platform::is_mobile() && !SDL_HasGamepad()) controls_.note_touch();
     // Screenshots on desktop: GT3R_TOUCH_SHOW=1 shows the controls as if the
     // screen had been touched (auto mode; nothing is written to config.ini).
     if (const char* v = SDL_getenv("GT3R_TOUCH_SHOW"); v && *v == '1') controls_.note_touch();
 }
 
 bool TouchOverlay::event(const SDL_Event& e) {
+    // Apple TV: no touch screen. The Siri Remote's touch surface sends finger events, which must
+    // not bring up the controls.
+    if (platform::is_tv()) return false;
     switch (e.type) {
     case SDL_EVENT_FINGER_DOWN:
         if (e.tfinger.touchID == SDL_MOUSE_TOUCHID) return false; // synthesized from a mouse

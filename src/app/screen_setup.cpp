@@ -10,6 +10,7 @@
 #include "base/file.h"
 #include "gt3r_version.h"
 #include "platform/recent_discs.h"
+#include "platform/render_scale.h"
 
 #include <algorithm>
 #include <cmath>
@@ -67,7 +68,7 @@ public:
     }
 
     void on_event(App& app, const SDL_Event& e) override {
-        if (e.type == SDL_EVENT_DID_ENTER_FOREGROUND) library_.clear(); // the images looked for again
+        if (e.type == SDL_EVENT_DID_ENTER_FOREGROUND) library_.clear(), tv_looked_ = false; // the images looked for again
         if (float x, y; xr_hover(e, x, y)) // the VR pointer focuses what it is over (ui.h)
             if (int i = item_at(x, y); i >= 0) sel_ = i;
         switch (gesture_.feed(e)) {
@@ -127,8 +128,13 @@ public:
             y += 11;
         }
         y += 4;
-        for (const std::string& line :
-             Ui::wrap("To play, open a disc image (.iso or .chd) made from your own copy of Gran Turismo 3 A-Spec.", lw)) {
+        // Apple TV: no file picker. The image comes with the app or is sent from a Mac.
+        const char* how = platform::is_tv()
+                              ? "To play, send a disc image (.iso or .chd) made from your own copy of Gran Turismo 3 "
+                                "A-Spec from a Mac: tools/tvos/tv.py push-disc <image>. Or build the app with the "
+                                "image inside (GT3R_TVOS_DISC)."
+                              : "To play, open a disc image (.iso or .chd) made from your own copy of Gran Turismo 3 A-Spec.";
+        for (const std::string& line : Ui::wrap(how, lw)) {
             ui.text(lx, y, line, colors::kDim);
             y += 11;
         }
@@ -244,8 +250,19 @@ private:
         for (size_t i = 0; i < there_.size(); ++i)
             if (int(items_.size()) < 4 && there_[i] && !platform::same_disc_path(library_[i], app.failed_disc_path()))
                 items_.push_back({Item::Recent, "", library_[i]});
+        // Apple TV: the images found in the app and in its folder, looked for once and when the
+        // player asks (platform/tv_discs.h).
+        if (platform::is_tv()) {
+            if (!tv_looked_) tv_found_ = app.tv_discs(), tv_looked_ = true;
+            for (const std::string& p : tv_found_) {
+                const bool listed = std::any_of(items_.begin(), items_.end(),
+                                                [&](const Item& it) { return platform::same_disc_path(it.path, p); });
+                if (int(items_.size()) < 4 && !listed && !platform::same_disc_path(p, app.failed_disc_path()))
+                    items_.push_back({Item::Recent, "", p});
+            }
+        }
         recent_count_ = int(items_.size());
-        items_.push_back({Item::Browse, "Open disc image", ""});
+        items_.push_back({Item::Browse, platform::is_tv() ? "Look for a disc image" : "Open disc image", ""});
         items_.push_back({Item::Settings, "Settings", ""});
         if (kCanQuit) items_.push_back({Item::Quit, "Quit", ""});
     }
@@ -255,7 +272,10 @@ private:
         const Item& it = items_[sel_];
         switch (it.kind) {
         case Item::Recent: app.request_disc(it.path); break;
-        case Item::Browse: app.show_open_dialog(); break;
+        case Item::Browse:
+            if (platform::is_tv()) tv_looked_ = false; // looked for again at the next frame
+            else app.show_open_dialog();
+            break;
         case Item::Settings: app.push(make_settings_screen()); break;
         case Item::Quit: app.quit(); break;
         }
@@ -265,6 +285,8 @@ private:
     std::vector<UiRect> rects_; // last frame's, for taps
     std::vector<std::string> library_; // App::recent_discs() as of the last look
     std::vector<char> there_;          // per image of library_ (as far as looked): found
+    std::vector<std::string> tv_found_; // Apple TV: App::tv_discs() as of the last look
+    bool tv_looked_ = false;
     int recent_count_ = 0;
     int sel_ = 0;
     int pressed_ = -1;

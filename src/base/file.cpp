@@ -1,5 +1,6 @@
 #include "base/file.h"
 #include "platform/document_tree.h"
+#include "platform/tv_persist.h"
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_filesystem.h>
@@ -80,7 +81,9 @@ bool write_host_file(const std::string& path, ByteSpan data) {
     // A new file is made first (its folder must be there); SDL then writes it from the start.
     if (in_tree(path) && (open = platform::document_create(path, false)).empty()) return false;
 #endif
-    return SDL_SaveFile(open.c_str(), data.data(), data.size());
+    const bool ok = SDL_SaveFile(open.c_str(), data.data(), data.size());
+    platform::persist_note_write(path); // Apple TV: kept through a purge (platform/tv_persist.h)
+    return ok;
 }
 
 bool host_path_exists(const std::string& path) {
@@ -154,6 +157,7 @@ bool host_remove(const std::string& path) {
 #if defined(SDL_PLATFORM_ANDROID)
     if (in_tree(path)) return platform::document_remove(path);
 #endif
+    platform::persist_note_write(path);
     return SDL_RemovePath(path.c_str());
 }
 
@@ -167,6 +171,7 @@ bool host_rename(const std::string& from, const std::string& to) {
 #endif
     // SDL_RenamePath takes UTF-8 on every platform (std::filesystem would use the ANSI code
     // page on Windows) and replaces an existing file.
+    platform::persist_note_write(to);
     return SDL_RenamePath(from.c_str(), to.c_str());
 }
 

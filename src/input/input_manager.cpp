@@ -296,6 +296,20 @@ void InputManager::add_device(SDL_JoystickID id) {
 #if GT3R_XR
     d.vr_pad = SDL_IsJoystickVirtual(id); // (the game makes no other)
 #endif
+#if defined(SDL_PLATFORM_TVOS)
+    // The Siri Remote, which SDL gives as a small gamepad under tvOS's own name for it, with no
+    // shoulder buttons or triggers (its USB IDs are the ones every controller gets there). It is
+    // always there and connects first, so it would be player 1's pad; and its touch surface as
+    // a D-pad moves through menus unevenly. The game is played with a real controller: the
+    // Remote is not read (App::event drops the key presses SDL then makes of its buttons).
+    if (d.gamepad && (contains_ci(d.name, "Remote") ||
+                      (!SDL_GamepadHasButton(d.gamepad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER) &&
+                       !SDL_GamepadHasAxis(d.gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER)))) {
+        LOG_INFO("Input device ignored: %s (the Siri Remote)", d.name.c_str());
+        SDL_CloseGamepad(d.gamepad);
+        return;
+    }
+#endif
     d.dualsense = d.gamepad && SDL_GetGamepadType(d.gamepad) == SDL_GAMEPAD_TYPE_PS5;
     if (const char* serial = SDL_GetJoystickSerial(d.joystick)) d.serial = serial;
     if (const char* path = SDL_GetJoystickPath(d.joystick)) d.path = path;
@@ -329,6 +343,7 @@ void InputManager::assign_devices() {
             Player& p = players_[i];
             bool is_auto = p.device_filter == "auto" || p.device_filter.empty();
             if ((pass == 0) == is_auto) continue;
+            const SDL_JoystickID device_before = p.device;
             p.device = 0;
             if (is_auto) {
                 // Devices other players' tagged bindings use aren't handed out either.
@@ -356,6 +371,7 @@ void InputManager::assign_devices() {
                     }
             }
             const Device* d = find_device(p.device);
+            if (p.device != device_before) LOG_INFO("Player %d's controller: %s", i + 1, d ? d->name.c_str() : "none");
             p.kind = device_kind(d != nullptr, d && d->gamepad, d && d->wheel,
                                  !is_auto && !p.wheel_device.empty() && p.device_filter == p.wheel_device);
             p.bindings.vr_pad = d && d->vr_pad;

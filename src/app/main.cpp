@@ -5,6 +5,8 @@
 #include "app/app.h"
 #include "app/gles_probe.h"
 #include "app/launch_help.h"
+#include "game/gt_save.h"
+#include "platform/tv_log.h"
 
 #include <SDL3/SDL_main.h>
 
@@ -21,6 +23,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif
 
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
+    gt3r::platform::start_log_file(gt3r::game::user_data_dir()); // Apple TV: the log in a file
     if (gt3r::wants_launch_help(argc, argv)) { // before SDL starts: no window
         gt3r::print_launch_help();
         return SDL_APP_SUCCESS;

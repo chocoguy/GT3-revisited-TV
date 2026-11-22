@@ -12,6 +12,7 @@
 *.cso
 extracted/
 dump/
+iso
 
 build*/
 .DS_Store

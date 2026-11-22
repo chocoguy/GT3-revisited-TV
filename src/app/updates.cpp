@@ -4,6 +4,7 @@
 #include "app/screen_online.h"
 #include "base/log.h"
 #include "net/session.h"
+#include "platform/render_scale.h"
 
 #include <algorithm>
 #include <cmath>
@@ -162,6 +163,9 @@ void Updates::open_dialog() { open_dialog(prompt()); }
 
 void Updates::open_dialog(net::UpdatePrompt kind) {
     if (kind == net::UpdatePrompt::None) return;
+    // Apple TV: no browser to download with or to show the notes; the app is updated by building
+    // it again. The badge and Settings still say that a newer version exists.
+    if (platform::is_tv()) return;
     if (!dialog_.open) dialog_.focus = 0; // Download update
     dialog_.open = true;
     dialog_.kind = kind;

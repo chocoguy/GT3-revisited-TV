@@ -78,6 +78,8 @@ public:
     std::string open_disc(const std::string& path);
     void close_disc();
     void show_open_dialog();
+    // Apple TV: the disc images there are (the app's own, then those sent to the user data folder).
+    std::vector<std::string> tv_discs() const;
     // Opens `path` on the next frame, like a file picked in the dialog: on
     // success the screen stack restarts (hub + game start) for the new disc.
     void request_disc(const std::string& path) { set_dialog_result(path); }

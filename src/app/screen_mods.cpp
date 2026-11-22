@@ -14,6 +14,7 @@
 #include "formats/text/charset.h"
 #include "formats/texture_pack.h"
 #include "game/data/car_database.h"
+#include "platform/render_scale.h"
 #include "platform/ios_files.h"
 #include "platform/music_folder.h"
 #include "platform/user_files.h"
@@ -39,8 +40,9 @@ const SDL_DialogFileFilter kZipFilters[] = {
 bool is_zip_name(std::string_view s) { return s.size() > 4 && to_lower(s.substr(s.size() - 4)) == ".zip"; }
 
 // Every build has a mods folder to unpack into and to open.
-constexpr bool can_install() { return true; }
-constexpr bool can_open_folder() { return true; }
+// The Apple TV has no file picker and no Files app: mods have no way in there yet.
+bool can_install() { return !platform::is_tv(); }
+bool can_open_folder() { return !platform::is_tv(); }
 // PCSX2 packs live on computers: the folder dialog of a computer picks one.
 bool can_convert_pcsx2() {
 #if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
@@ -339,7 +341,9 @@ public:
         ui.fill(0, sy, ui.width(), 1, colors::kOutline);
         std::string status = message_;
         if (status.empty()) {
-#if defined(SDL_PLATFORM_ANDROID)
+#if defined(SDL_PLATFORM_TVOS)
+            status = "Mods cannot be installed on an Apple TV yet: it has no file picker and no Files app.";
+#elif defined(SDL_PLATFORM_ANDROID)
             status = "Mods folder: in the Files app, under GT3 Revisited > mods (Open folder takes you there).";
 #elif defined(SDL_PLATFORM_IOS)
             status = "Mods folder: in the Files app, On My iPhone > GT3 Revisited > mods (Open folder takes you there).";

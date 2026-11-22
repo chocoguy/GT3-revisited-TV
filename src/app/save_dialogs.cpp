@@ -23,6 +23,7 @@
 #include "menu/flow/save_page.h"
 #include "platform/ios_files.h"
 #include "platform/mac_dialog.h"
+#include "platform/render_scale.h"
 #include "platform/user_files.h"
 
 #include <SDL3/SDL_dialog.h>
@@ -108,6 +109,12 @@ void install_save_dialogs(App& app) {
         }
         const bool cameras = kind == menu::flow::FileDialogs::Kind::OpenCameras;
         const bool open = kind == menu::flow::FileDialogs::Kind::OpenSave || cameras;
+        // Apple TV: no file picker; "from a file" answers as a cancel. An export goes to the user
+        // data folder's exports/ below, which a Mac reads (tools/tvos/tv.py).
+        if (open && platform::is_tv()) {
+            answer(ticket, std::string());
+            return;
+        }
         g_native = true;
         pad_during_dialog(*input, true);
         const SDL_DialogFileFilter* filters = cameras ? kCameraFilters : kOpenFilters;

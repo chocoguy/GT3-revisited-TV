@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Draws the GT3 Revisited application icon (original artwork, no game assets).
 
-Writes packaging/icon.png (1024x1024), packaging/icon.ico (Windows) and the
-Android launcher icons. Needs Pillow:  python3 packaging/make_icon.py
+Writes packaging/icon.png (1024x1024), packaging/icon.ico (Windows), the
+Android launcher icons and the Apple TV asset catalog (packaging/tvos). Needs
+Pillow:  python3 packaging/make_icon.py
 """
+import json
 import math
 import os
 
@@ -35,19 +37,18 @@ def road_points(offset, n=200):
     return pts
 
 
-def draw(size=S):
-    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    bg = Image.new("RGBA", (S, S))
-    px = bg.load()
+def background(w, h):
+    # The icon's dark gradient, top to bottom, opaque.
+    column = Image.new("RGBA", (1, h))
+    px = column.load()
     top, bottom = (36, 40, 58), (12, 13, 19)
-    for y in range(S):
-        c = lerp(top, bottom, y / (S - 1))
-        for x in range(S):
-            px[x, y] = c + (255,)
-    mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((32, 32, S - 32, S - 32), radius=200, fill=255)
-    img.paste(bg, (0, 0), mask)
+    for y in range(h):
+        px[0, y] = lerp(top, bottom, y / (h - 1)) + (255,)
+    return column.resize((w, h), Image.NEAREST)
 
+
+def road_art():
+    # The road alone on a transparent square (S x S).
     road = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(road)
     d.polygon(road_points(-125) + road_points(125)[::-1], fill=(58, 60, 68, 255))
@@ -61,6 +62,16 @@ def draw(size=S):
     centre = road_points(0, 120)
     for i in range(0, len(centre) - 1, 6):
         d.line([centre[i], centre[min(i + 3, len(centre) - 1)]], fill=(255, 196, 40, 255), width=18)
+    return road
+
+
+def draw(size=S):
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((32, 32, S - 32, S - 32), radius=200, fill=255)
+    img.paste(background(S, S), (0, 0), mask)
+
+    road = road_art()
     road_mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(road_mask).rounded_rectangle((32, 32, S - 32, S - 32), radius=200, fill=255)
     img.paste(road, (0, 0), Image.composite(road.getchannel("A"), Image.new("L", (S, S), 0), road_mask))
@@ -68,6 +79,75 @@ def draw(size=S):
     # Rim highlight.
     ImageDraw.Draw(img).rounded_rectangle((34, 34, S - 34, S - 34), radius=198, outline=(255, 196, 40, 255), width=10)
     return img if size == S else img.resize((size, size), Image.LANCZOS)
+
+
+# Apple TV (docs/dev/PLATFORMS.md "tvOS"): the Home screen takes only a layered icon, an image
+# stack whose back layer is opaque (the layers shift against each other as the icon is focused),
+# and wants the Top Shelf pictures in the same brand asset. tvOS rounds the corners itself.
+XCODE_INFO = {"author": "xcode", "version": 1}
+
+
+def tv_picture(w, h, back, front, art=5 / 3):
+    # `back`: the gradient; `front`: the road, centred, its square `art` times the picture's
+    # height: taller than the picture, so the road runs in at the bottom and out at the top.
+    img = background(w, h) if back else Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    if front:
+        side = round(h * art)
+        road = road_art().resize((side, side), Image.LANCZOS)
+        cw, ch = min(side, w), min(side, h)
+        left, top = (side - cw) // 2, (side - ch) // 2
+        img.alpha_composite(road.crop((left, top, left + cw, top + ch)), ((w - cw) // 2, (h - ch) // 2))
+    return img
+
+
+def write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def tv_imageset(folder, w, h, scales, back, front):
+    # An image set of one picture at each scale ("1x", "2x").
+    images = []
+    for scale in scales:
+        k = int(scale[0])
+        name = "image.png" if k == 1 else "image@%dx.png" % k
+        os.makedirs(folder, exist_ok=True)
+        tv_picture(w * k, h * k, back, front).save(os.path.join(folder, name), optimize=True)
+        images.append({"filename": name, "idiom": "tv", "scale": scale})
+    write_json(os.path.join(folder, "Contents.json"), {"images": images, "info": XCODE_INFO})
+
+
+def tv_imagestack(folder, w, h, scales):
+    layers = []
+    for layer, back, front in (("Front", False, True), ("Back", True, False)):
+        name = layer + ".imagestacklayer"
+        write_json(os.path.join(folder, name, "Contents.json"), {"info": XCODE_INFO})
+        tv_imageset(os.path.join(folder, name, "Content.imageset"), w, h, scales, back, front)
+        layers.append({"filename": name})
+    write_json(os.path.join(folder, "Contents.json"), {"info": XCODE_INFO, "layers": layers})
+
+
+def tv_assets():
+    catalog = os.path.join(HERE, "tvos", "gt3r-tvos.xcassets")
+    brand = os.path.join(catalog, "AppIcon.brandassets")
+    write_json(os.path.join(catalog, "Contents.json"), {"info": XCODE_INFO})
+    tv_imagestack(os.path.join(brand, "App Icon.imagestack"), 400, 240, ["1x", "2x"])
+    tv_imagestack(os.path.join(brand, "App Icon - App Store.imagestack"), 1280, 768, ["1x"])
+    tv_imageset(os.path.join(brand, "Top Shelf Image.imageset"), 1920, 720, ["1x", "2x"], True, True)
+    tv_imageset(os.path.join(brand, "Top Shelf Image Wide.imageset"), 2320, 720, ["1x", "2x"], True, True)
+    write_json(os.path.join(brand, "Contents.json"), {
+        "assets": [
+            {"filename": "App Icon.imagestack", "idiom": "tv", "role": "primary-app-icon", "size": "400x240"},
+            {"filename": "App Icon - App Store.imagestack", "idiom": "tv", "role": "primary-app-icon",
+             "size": "1280x768"},
+            {"filename": "Top Shelf Image.imageset", "idiom": "tv", "role": "top-shelf-image", "size": "1920x720"},
+            {"filename": "Top Shelf Image Wide.imageset", "idiom": "tv", "role": "top-shelf-image-wide",
+             "size": "2320x720"},
+        ],
+        "info": XCODE_INFO,
+    })
 
 
 def main():
@@ -79,6 +159,7 @@ def main():
         out = os.path.join(res, "mipmap-" + name)
         os.makedirs(out, exist_ok=True)
         icon.resize((px, px), Image.LANCZOS).save(os.path.join(out, "ic_launcher.png"))
+    tv_assets()
     print("icons written")
 
 

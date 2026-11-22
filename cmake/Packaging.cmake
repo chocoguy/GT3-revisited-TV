@@ -24,6 +24,34 @@ if(TARGET gt3r AND IOS)
     MACOSX_BUNDLE_INFO_PLIST ${GT3R_PACKAGING_DIR}/Info-iOS.plist.in
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+elseif(TARGET gt3r AND GT3R_TVOS)
+  # The asset catalog packaging/make_icon.py writes: tvOS takes only a layered icon (an image
+  # stack with an opaque back layer) and wants the Top Shelf pictures with it, all in one brand
+  # asset. Xcode's actool compiles it.
+  set(_xcassets ${GT3R_PACKAGING_DIR}/tvos/gt3r-tvos.xcassets)
+  target_sources(gt3r PRIVATE ${_xcassets})
+  set_source_files_properties(${_xcassets} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  set_target_properties(gt3r PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST ${GT3R_PACKAGING_DIR}/Info-tvOS.plist.in
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+  # The builder's own disc image inside the app (docs/dev/PLATFORMS.md "tvOS"): tvOS has no file
+  # picker, and the only folder an app writes there can be emptied by the system. The image is
+  # copied from where it is into the built app's disc/ folder (platform/tv_discs.h), never into
+  # the source tree, and such an app is for the builder's own Apple TV, not for anyone else.
+  set(GT3R_TVOS_DISC "" CACHE FILEPATH "tvOS: a disc image (.iso or .chd) of your own to build into the app")
+  if(GT3R_TVOS_DISC)
+    if(NOT EXISTS "${GT3R_TVOS_DISC}" OR IS_DIRECTORY "${GT3R_TVOS_DISC}")
+      message(FATAL_ERROR "GT3R_TVOS_DISC: ${GT3R_TVOS_DISC} is not a file")
+    endif()
+    if(NOT GT3R_TVOS_DISC MATCHES "\\.([iI][sS][oO]|[cC][hH][dD])$")
+      message(FATAL_ERROR "GT3R_TVOS_DISC: a disc image is a .iso or a .chd")
+    endif()
+    target_sources(gt3r PRIVATE "${GT3R_TVOS_DISC}")
+    set_source_files_properties("${GT3R_TVOS_DISC}" PROPERTIES
+      MACOSX_PACKAGE_LOCATION Resources/disc HEADER_FILE_ONLY TRUE)
+    message(STATUS "tvOS: building ${GT3R_TVOS_DISC} into the app")
+  endif()
 elseif(TARGET gt3r AND APPLE)
   # .icns generated from packaging/icon.png with the macOS tools.
   set(_iconset ${CMAKE_BINARY_DIR}/gt3r.iconset)
@@ -51,7 +79,7 @@ elseif(TARGET gt3r AND WIN32)
   target_sources(gt3r PRIVATE ${GT3R_PACKAGING_DIR}/gt3r.rc)
 endif()
 
-if(ANDROID OR IOS) # (packaged by Gradle, or installed from Xcode by each builder)
+if(ANDROID OR GT3R_APPLE_DEVICE) # (packaged by Gradle, or installed from Xcode by each builder)
   return()
 endif()
 
