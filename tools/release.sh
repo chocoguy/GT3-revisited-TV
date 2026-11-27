@@ -146,7 +146,7 @@ act codesign --verify --deep --strict --verbose=2 "$app"
 say "Notarizing"
 rm -rf "$DIST/$version"
 mkdir -p "$DIST/$version"
-zip="$DIST/$version/GT3RevisitedInstaller-$version.zip"
+zip="$DIST/$version/GT3RevisitedInstaller.zip"
 ditto -c -k --keepParent "$app" "$zip"
 act xcrun notarytool submit "$zip" --keychain-profile "$PROFILE" --wait
 act xcrun stapler staple "$app"
