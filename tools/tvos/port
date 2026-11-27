@@ -431,7 +431,10 @@ def cmd_build(ctx: Context) -> int:
     stage('configure', 'Setting up the Xcode project')
     project = ctx.work / 'xcode'
     stamp = source_version()
+    # The SDK explicitly: /usr/bin/python3 runs through xcrun, which exports SDKROOT as the macOS SDK,
+    # and CMake would take that (and keep it in the cache) over the tvOS default.
     configure = ['cmake', '-S', ROOT, '-B', project, '-G', 'Xcode', '-DCMAKE_SYSTEM_NAME=tvOS',
+                 f'-DCMAKE_OSX_SYSROOT={SDK}',
                  '-DCMAKE_OSX_DEPLOYMENT_TARGET=16.0', '-DGT3R_BUILD_TESTS=OFF', '-DGT3R_BUILD_TOOLS=OFF',
                  f'-DGT3R_IOS_TEAM={ctx.team}', f'-DGT3R_IOS_BUNDLE_ID={ctx.bundle_id}',
                  f"-DGT3R_TVOS_DISC={prepared['disc']}",
