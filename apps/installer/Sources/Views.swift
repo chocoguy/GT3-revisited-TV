@@ -14,7 +14,7 @@ struct ContentView: View {
                 Label("Game", systemImage: "gamecontroller")
                     .tag(AppModel.Screen.game)
                 Label("Updates", systemImage: "arrow.down.circle")
-                    .badge(model.updateAvailable ? 1 : 0)
+                    .badge(model.updateAvailable || model.newInstaller != nil ? 1 : 0)
                     .tag(AppModel.Screen.updates)
                 Label {
                     Text("Activity")
@@ -43,6 +43,42 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 760, minHeight: 520)
+        .alert("A new GT3 Revisited Installer is available", isPresented: $model.showNewInstaller) {
+            Button("Download") { model.openNewInstaller() }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text(newInstallerMessage)
+        }
+    }
+
+    private var newInstallerMessage: String {
+        let tag = model.newInstaller?.tag ?? "The latest release"
+        return "\(tag) needs a new installer, so game updates wait until you use it. Download it from GitHub " +
+            "and replace this one: your disc, your Apple TVs and the build carry over."
+    }
+}
+
+/// Says a release needs a new installer, with the way to get it.
+struct NewInstallerBanner: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        if let newer = model.newInstaller {
+            GroupBox {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "arrow.down.app.fill").font(.title2).foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("A new installer is available").bold()
+                        Text("\(newer.tag) needs it. Game updates wait until you download it and open it instead of this one.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Download…", action: model.openNewInstaller)
+                }
+                .padding(6)
+            }
+        }
     }
 }
 
@@ -87,6 +123,48 @@ struct SetupScreen: View {
                 }
             }
             DiscBox()
+            StorageBox()
+        }
+    }
+}
+
+/// The one folder the installer writes to, how big it is, and ways to shrink it.
+struct StorageBox: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var confirmingRemoval = false
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    Image(systemName: "internaldrive").font(.title)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.storageBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Measuring…")
+                            .font(.headline)
+                        Text(model.workspace.root.path)
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                    Spacer()
+                    Button("Show in Finder", action: model.showStorage)
+                }
+                Text("Everything the installer makes is in this folder: the game's source, the Xcode project and build, CMake and the logs. Free Up Space removes the build (the next install takes about 10 minutes longer). Remove Everything also forgets your disc and Apple TVs; the game stays on them.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Free Up Space", action: model.freeUpSpace)
+                    Button("Remove Everything…") { confirmingRemoval = true }
+                }
+                .disabled(model.activity.running)
+            }
+            .padding(6)
+        } label: {
+            Text("Storage").font(.headline)
+        }
+        .confirmationDialog("Remove everything the installer made?", isPresented: $confirmingRemoval) {
+            Button("Remove Everything", role: .destructive, action: model.removeEverything)
+        } message: {
+            Text("This deletes \(model.workspace.root.path). The game stays on your Apple TVs, and your disc image isn't touched.")
         }
     }
 }
@@ -167,7 +245,10 @@ struct GameScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Header(title: "GT3 Revisited",
-                   subtitle: model.state.tag.map { "Version \($0) is built." } ?? "Not built yet. The first build takes about 10 minutes.")
+                   subtitle: model.state.installs.isEmpty || model.state.tag == nil
+                       ? "Not installed yet. The first build takes about 10 minutes."
+                       : "Version \(model.state.tag!) is installed.")
+            NewInstallerBanner()
             DiscBox()
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
@@ -304,24 +385,11 @@ struct DevicePicker: View {
 
 struct UpdatesScreen: View {
     @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var updater: InstallerUpdater
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Header(title: "Updates", subtitle: "New versions come from the project's releases on GitHub.")
-            GroupBox {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("GT3 Revisited Installer \(model.installerVersion.description)").bold()
-                        if let needed = model.needsInstaller {
-                            Text("The latest game needs installer \(needed.description) or later.").foregroundStyle(.orange)
-                        }
-                    }
-                    Spacer()
-                    Button("Check for Updates…", action: updater.check).disabled(!updater.available)
-                }
-                .padding(8)
-            }
+            Header(title: "Updates", subtitle: "New versions of the game come from the project's releases on GitHub.")
+            NewInstallerBanner()
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     if let error = model.releaseError {
@@ -334,9 +402,13 @@ struct UpdatesScreen: View {
                                 Text(status(latest)).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button(model.state.installs.isEmpty ? "Nothing Installed Yet" : "Update All", action: model.updateAll)
-                                .buttonStyle(.borderedProminent)
-                                .disabled(!model.updateAvailable || !model.canRun)
+                            if model.state.installs.isEmpty {
+                                Button("Go to Game") { model.screen = .game }
+                            } else if model.updateAvailable {
+                                Button("Update All", action: model.updateAll)
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(!model.canRun)
+                            }
                         }
                         if let notes = latest.notes, !notes.isEmpty {
                             Divider()
@@ -359,21 +431,24 @@ struct UpdatesScreen: View {
                             }
                         }
                         .fixedSize()
-                        .disabled(model.installable.isEmpty || model.state.installs.isEmpty || !model.canRun)
+                        .disabled(model.installable.isEmpty || model.state.installs.isEmpty || model.newInstaller != nil || !model.canRun)
                     }
                 }
                 .padding(8)
-            } label: {
-                Text("The game").font(.headline)
             }
+            Text("GT3 Revisited Installer \(model.installerVersion.description) builds every \(model.installerVersion.major).x release.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func status(_ latest: Release) -> String {
-        guard let tag = model.state.tag else {
-            return "The newest release. Install the game from the Game screen."
+        guard !model.state.installs.isEmpty, let tag = model.state.tag else {
+            return "The newest release. Install it on an Apple TV from the Game screen."
         }
-        return model.updateAvailable ? "You have \(tag). Update All rebuilds it once and reinstalls it everywhere it's installed."
+        if model.newInstaller != nil, latest.tag != tag {
+            return "You have \(tag). Updates wait for the new installer."
+        }
+        return model.updateAvailable ? "You have \(tag). Update All builds it once and installs it on every Apple TV."
                                      : "You have the newest version."
     }
 }

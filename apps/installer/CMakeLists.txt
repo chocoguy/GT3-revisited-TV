@@ -1,9 +1,10 @@
 # GT3 Revisited Installer: the Mac app players download (signed with a Developer ID and notarized by
 # tools/release.sh). It builds the game from their own disc image at a GitHub release tag and installs
-# it on their Apple TVs, through tools/tvos/port; Sparkle updates the installer itself.
+# it on their Apple TVs, through tools/tvos/port. It doesn't update itself: a new major version is a
+# new installer (docs/release.md).
 #
 # A project of its own (the game's CMakeLists.txt is not involved):
-#   cmake -S apps/installer -B build-installer -G Xcode            the app (Xcode only: it embeds Sparkle)
+#   cmake -S apps/installer -B build-installer -G Xcode            the app (Xcode only)
 #   cmake -S apps/installer -B build-installertest -G Ninja
 #   cmake --build build-installertest --target gt3r_installertest  its logic, without the UI (any generator)
 cmake_minimum_required(VERSION 3.21)
@@ -14,8 +15,8 @@ if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
   set(CMAKE_OSX_DEPLOYMENT_TARGET 14.0)
 endif()
 
-# The installer's version is the release's (port.json, or -DGT3R_INSTALLER_VERSION from release.sh):
-# a release's port.json minAppVersion is compared with it.
+# The installer's version is the release it was built for (port.json, or -DGT3R_INSTALLER_VERSION from
+# release.sh, which builds it only for a new major version, N.0.0). It builds the releases of its major.
 set(GT3R_INSTALLER_VERSION "" CACHE STRING "The release version (the tag without its v; empty: port.json's)")
 set(GT3R_INSTALLER_COMMIT "" CACHE STRING "The commit built (short hash)")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${GT3R_ROOT}/port.json")
@@ -43,24 +44,10 @@ if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
   return()
 endif()
 
-include(FetchContent)
-
-# Sparkle, pinned: the release tarball's SHA-256 is GitHub's digest for it.
-FetchContent_Declare(sparkle
-  URL https://github.com/sparkle-project/Sparkle/releases/download/2.10.1/Sparkle-2.10.1.tar.xz
-  URL_HASH SHA256=1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  SOURCE_SUBDIR no-cmake)
-FetchContent_MakeAvailable(sparkle)
-set(GT3R_SPARKLE_DIR "${sparkle_SOURCE_DIR}" CACHE INTERNAL "Sparkle's framework and tools (bin/)")
-
 set(GT3R_INSTALLER_BUNDLE_ID "com.chocoguy.gt3r.installer" CACHE STRING "Bundle identifier for GT3 Revisited Installer")
 # Ad hoc for local builds; tools/release.sh signs with "Developer ID Application".
 set(GT3R_INSTALLER_SIGN_IDENTITY "-" CACHE STRING "Code signing identity for GT3 Revisited Installer")
 set(GT3R_INSTALLER_TEAM "" CACHE STRING "The Developer ID's team (release builds)")
-# Sparkle's public EdDSA key (generate_keys prints it). Empty in local builds, which then never
-# offer to update themselves.
-set(GT3R_SPARKLE_PUBLIC_KEY "" CACHE STRING "Sparkle's public EdDSA key for the installer's updates")
 
 set(_sources
   Sources/AppModel.swift
@@ -91,11 +78,6 @@ set_target_properties(GT3RevisitedInstaller PROPERTIES
   XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${GT3R_INSTALLER_TEAM}"
   XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME YES
   XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS "--timestamp"
-  XCODE_ATTRIBUTE_FRAMEWORK_SEARCH_PATHS "${sparkle_SOURCE_DIR}"
-  XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path/../Frameworks"
-  XCODE_EMBED_FRAMEWORKS "${sparkle_SOURCE_DIR}/Sparkle.framework"
-  XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY YES
-  XCODE_EMBED_FRAMEWORKS_REMOVE_HEADERS_ON_COPY YES
   XCODE_GENERATE_SCHEME ON)
 if(GT3R_INSTALLER_SIGN_IDENTITY STREQUAL "-")
   # No timestamp server for ad hoc signatures.
@@ -103,6 +85,5 @@ if(GT3R_INSTALLER_SIGN_IDENTITY STREQUAL "-")
 endif()
 
 target_link_libraries(GT3RevisitedInstaller PRIVATE
-  "${sparkle_SOURCE_DIR}/Sparkle.framework"
   "-framework AppKit"
   "-framework SwiftUI")

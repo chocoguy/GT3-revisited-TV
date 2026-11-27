@@ -465,7 +465,10 @@ def cmd_build(ctx: Context) -> int:
             state['signing'] = True
             stage('sign', 'Signing the app')
 
+    # Xcode's derived data (logs, index, module cache) inside the project too, not in
+    # ~/Library/Developer/Xcode/DerivedData: everything the build makes stays in --work-dir.
     build = ['cmake', '--build', project, '--config', CONFIGURATION, '--target', TARGET, '--',
+             '-derivedDataPath', str(project / 'DerivedData'),
              '-allowProvisioningUpdates', '-allowProvisioningDeviceRegistration']
     if stream(build, cwd=ROOT, on_line=on_line) != 0:
         raise explain(lines, ctx)
