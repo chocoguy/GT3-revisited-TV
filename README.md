@@ -21,11 +21,12 @@ disc image (`.iso` or `.chd`) that you made from your own copy of the game.
 
 ## Install
 
-1. Download **GT3 Revisited Installer** from the [latest release](https://github.com/chocoguy/GT3-revisited-TV/releases/latest) and move it to your Applications folder. It is signed and notarized, so it opens with a double-click.
-2. Open it and go to **Setup**. It checks Xcode, its tvOS platform and your Apple ID, and each problem it finds comes with a button that fixes it. It downloads anything else it needs itself, so you never have to open the Terminal.
-3. Pair your Apple TV with Xcode if you haven't already. On the TV, open **Settings → Remotes and Devices → Remote App and Devices**; on the Mac, open **Xcode → Window → Devices and Simulators**. Then turn on **Developer Mode** on the TV (**Settings → Privacy & Security**).
-4. On the **Game** page, choose your disc image (`.iso` or `.chd`), then click **Install On** next to your Apple TV. The first build takes a while. The first install sends the whole game, disc included, to the TV, which takes about 5 minutes over the network.
-5. Start **GT3 Revisited** from the Apple TV's Home screen. The installer never starts it for you.
+1. Download **GT3 Revisited Installer** from the [latest release](https://github.com/chocoguy/GT3-revisited-TV/releases/latest) and ***move it to your Applications folder.*** It is signed and notarized, so it opens with a double-click.
+2. Did I mention to move the .app package to the ***Applications Folder?***
+3. Open it and go to **Setup**. It checks Xcode, its tvOS platform and your Apple ID, and each problem it finds comes with a button that fixes it. It downloads anything else it needs itself, so you never have to open the Terminal.
+4. Pair your Apple TV with Xcode if you haven't already. On the TV, open **Settings → Remotes and Devices → Remote App and Devices**; on the Mac, open **Xcode → Window → Devices and Simulators**. Then turn on **Developer Mode** on the TV (**Settings → Privacy & Security**).
+5. On the **Game** page, choose your disc image (`.iso` or `.chd`), then click **Install On** next to your Apple TV. The first build takes a while. The first install sends the whole game, disc included, to the TV, which takes about 5 minutes over the network.
+6. Start **GT3 Revisited** from the Apple TV's Home screen. The installer never starts it for you.
 
 **Updates:** the **Updates** page shows new releases and their notes. **Update All** builds the new version and installs it on every Apple TV you installed on before. When a release needs a new installer, it says so and links to it: download it and open it instead of the old one. Your disc, Apple TVs and build carry over.
 

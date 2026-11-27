@@ -60,8 +60,9 @@ set(_sources
   Sources/Source.swift
   Sources/Views.swift
   Sources/Workspace.swift)
-add_executable(GT3RevisitedInstaller MACOSX_BUNDLE ${_sources} AppIcon.icns)
-set_source_files_properties(AppIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+# Assets.xcassets holds AccentColor (#5F8DD3), the app's accent.
+add_executable(GT3RevisitedInstaller MACOSX_BUNDLE ${_sources} AppIcon.icns Assets.xcassets)
+set_source_files_properties(AppIcon.icns Assets.xcassets PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
 set_target_properties(GT3RevisitedInstaller PROPERTIES
   OUTPUT_NAME "GT3 Revisited Installer"
@@ -73,6 +74,7 @@ set_target_properties(GT3RevisitedInstaller PROPERTIES
   MACOSX_BUNDLE_ICON_FILE AppIcon
   XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${GT3R_INSTALLER_BUNDLE_ID}"
   XCODE_ATTRIBUTE_SWIFT_VERSION 5.0
+  XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME AccentColor
   XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual
   XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${GT3R_INSTALLER_SIGN_IDENTITY}"
   XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${GT3R_INSTALLER_TEAM}"

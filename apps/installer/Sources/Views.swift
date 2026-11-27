@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension Color {
+    /// The installer's accent, #5F8DD3 (also AccentColor in Assets.xcassets, for AppKit's own controls).
+    static let brand = Color(.sRGB, red: 0x5F / 255, green: 0x8D / 255, blue: 0xD3 / 255)
+}
+
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
 
@@ -43,6 +48,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 760, minHeight: 520)
+        .tint(.brand)
         .alert("A new GT3 Revisited Installer is available", isPresented: $model.showNewInstaller) {
             Button("Download") { model.openNewInstaller() }
             Button("Later", role: .cancel) {}
@@ -436,8 +442,6 @@ struct UpdatesScreen: View {
                 }
                 .padding(8)
             }
-            Text("GT3 Revisited Installer \(model.installerVersion.description) builds every \(model.installerVersion.major).x release.")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
